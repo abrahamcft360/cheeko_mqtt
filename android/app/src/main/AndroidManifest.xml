@@ -8,10 +8,11 @@
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
     <application
-        android:label="cheeko_mqtt"
+        android:label="Cheeko Mqtt"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
-        android:usesCleartextTraffic="true">  <!-- THIS IS THE FIX -->
+        android:usesCleartextTraffic="true"
+        android:enableOnBackInvokedCallback="true">
         <activity
             android:name=".MainActivity"
             android:exported="true"

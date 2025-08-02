@@ -1,6 +1,6 @@
 class OtaConfig {
   final MqttConfig mqtt;
-  // Add other fields from your OTA response if needed
+  // Add other fields from OTA response if needed
 
   OtaConfig({required this.mqtt});
 

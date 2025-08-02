@@ -24,7 +24,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.cheekoai.in"
+        applicationId = "com.example.cheeko_mqtt"
         minSdk = 24
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode.toInt()
