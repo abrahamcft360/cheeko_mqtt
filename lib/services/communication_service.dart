@@ -29,6 +29,11 @@ class CommunicationService {
   Function(bool isPlaying)? onTtsStateChanged;
   Function()? onRecordStop;
 
+  AudioParams getAudioParams() {
+    return _udpSessionDetails?.audioParams ??
+        AudioParams(channels: 1, frameDuration: 60, sampleRate: 16000);
+  }
+
   CommunicationService() {
     // Use the hardcoded MAC address from the Python script
     _deviceMac = "00_16_3e_fa_3d_de";
@@ -134,13 +139,13 @@ class CommunicationService {
       "type": "hello",
       "client_id": _otaConfig!.mqtt.clientId,
     };
-    
+
     // Send to device-server topic
     _publishMqttMessage('device-server', helloPayload);
-    
+
     // Also send to internal/server-ingest with wrapped format (keeping typo for compatibility)
     final wrappedHello = {
-      "orginal_payload": helloPayload,  // Note: keeping original typo
+      "orginal_payload": helloPayload, // Note: keeping original typo
       "sender_client_id": _deviceMac,
     };
     _publishMqttMessage('internal/server-ingest', wrappedHello);
@@ -188,62 +193,74 @@ class CommunicationService {
 
   Future<void> _pingUdp() async {
     if (_udpSessionDetails == null) return;
-    
+
     // Close any existing socket
     _udpSocket?.close();
-    
+
     // Create new socket (like Python does)
     _udpSocket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
-    
-    _logger.i("UDP socket created on ${_udpSocket!.address.address}:${_udpSocket!.port}");
+
+    _logger.i(
+      "UDP socket created on ${_udpSocket!.address.address}:${_udpSocket!.port}",
+    );
     _logger.i("Local socket: ${_udpSocket!.address.host}:${_udpSocket!.port}");
-    
+
     // Start listening for UDP packets IMMEDIATELY after creating socket (like Python)
     _startUdpListenerInternal();
-    
+
     final serverUdpAddr = InternetAddress(_serverIp);
-    
+
     // Send ping after listener is set up
     final pingPayload = utf8.encode('ping:${_udpSessionDetails!.sessionId}');
     _logger.d("Ping payload: ${utf8.decode(pingPayload)}");
-    
+
     final encryptedPing = _encryptPacket(Uint8List.fromList(pingPayload));
-    
+
     // Log encrypted ping for debugging
     _logger.d("Encrypted ping size: ${encryptedPing.length} bytes");
-    _logger.d("First 16 bytes (header): ${encryptedPing.sublist(0, 16).map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}");
-    
+    _logger.d(
+      "First 16 bytes (header): ${encryptedPing.sublist(0, 16).map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}",
+    );
+
     final bytesSent = _udpSocket!.send(
       encryptedPing,
       serverUdpAddr,
       _udpSessionDetails!.udp.port,
     );
-    
-    _logger.i("UDP Ping sent to $_serverIp:${_udpSessionDetails!.udp.port} ($bytesSent bytes)");
+
+    _logger.i(
+      "UDP Ping sent to $_serverIp:${_udpSessionDetails!.udp.port} ($bytesSent bytes)",
+    );
     _logger.d("Session ID: ${_udpSessionDetails!.sessionId}");
     _logger.d("Encryption key: ${_udpSessionDetails!.udp.key}");
   }
 
   // Store the audio chunk callback for later use
   Function(Uint8List)? _onAudioChunk;
-  
+
   void startUdpListener(Function(Uint8List) onAudioChunk) {
     _onAudioChunk = onAudioChunk;
     // Don't start listening here - it will be started after ping
   }
-  
+
   void _startUdpListenerInternal() {
     if (_udpSocket == null || _udpSessionDetails == null) {
-      _logger.w("Cannot start UDP listener: socket=$_udpSocket, sessionDetails=$_udpSessionDetails");
+      _logger.w(
+        "Cannot start UDP listener: socket=$_udpSocket, sessionDetails=$_udpSessionDetails",
+      );
       return;
     }
-    
+
     final aesKey = enc.Key.fromBase16(_udpSessionDetails!.udp.key);
-    
+
     // Log UDP socket details
-    _logger.i("UDP socket bound to: ${_udpSocket!.address.address}:${_udpSocket!.port}");
-    _logger.i("Expecting UDP packets from: $_serverIp:${_udpSessionDetails!.udp.port}");
-    
+    _logger.i(
+      "UDP socket bound to: ${_udpSocket!.address.address}:${_udpSocket!.port}",
+    );
+    _logger.i(
+      "Expecting UDP packets from: $_serverIp:${_udpSessionDetails!.udp.port}",
+    );
+
     int packetCount = 0;
     int totalBytesReceived = 0;
     int audioPacketCount = 0;
@@ -258,13 +275,17 @@ class CommunicationService {
         final data = d.data;
         packetCount++;
         totalBytesReceived += data.length;
-        
+
         // Log first few packets for debugging
         if (packetCount <= 3) {
-          _logger.i("📦 UDP packet #$packetCount: ${data.length} bytes from ${d.address}:${d.port}");
-          _logger.d("Raw data (first 32 bytes): ${data.take(32).map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}${data.length > 32 ? '...' : ''}");
+          _logger.i(
+            "📦 UDP packet #$packetCount: ${data.length} bytes from ${d.address}:${d.port}",
+          );
+          _logger.d(
+            "Raw data (first 32 bytes): ${data.take(32).map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}${data.length > 32 ? '...' : ''}",
+          );
         }
-        
+
         if (data.length > 16) {
           final header = data.sublist(0, 16);
           final encryptedPayload = data.sublist(16);
@@ -279,7 +300,7 @@ class CommunicationService {
               enc.Encrypted(encryptedPayload),
               iv: iv,
             );
-            
+
             // Parse packet header to get sequence info
             if (header.length >= 16) {
               final headerData = ByteData.sublistView(header);
@@ -287,13 +308,16 @@ class CommunicationService {
               final flags = headerData.getUint8(1);
               final payloadLen = headerData.getUint16(2, Endian.big);
               final sequence = headerData.getUint32(12, Endian.big);
-              
-              if (packetType == 0x01) { // Audio packet
+
+              if (packetType == 0x01) {
+                // Audio packet
                 audioPacketCount++;
                 if (audioPacketCount <= 5 || audioPacketCount % 10 == 0) {
-                  _logger.i("🎵 Audio packet #$audioPacketCount (seq: $sequence): ${decrypted.length} bytes Opus audio");
+                  _logger.i(
+                    "🎵 Audio packet #$audioPacketCount (seq: $sequence): ${decrypted.length} bytes Opus audio",
+                  );
                 }
-                
+
                 // Pass to audio callback if available
                 if (_onAudioChunk != null) {
                   _onAudioChunk!(Uint8List.fromList(decrypted));
@@ -301,14 +325,18 @@ class CommunicationService {
                   _logger.w("Audio callback not set - packet dropped");
                 }
               } else {
-                _logger.d("Non-audio packet type: $packetType, len: $payloadLen");
+                _logger.d(
+                  "Non-audio packet type: $packetType, len: $payloadLen",
+                );
               }
             }
           } catch (e) {
             _logger.e("Decryption failed for packet #$packetCount: $e");
           }
         } else {
-          _logger.d("Small packet received: ${data.length} bytes (possibly control packet)");
+          _logger.d(
+            "Small packet received: ${data.length} bytes (possibly control packet)",
+          );
         }
       }
     });
@@ -322,13 +350,13 @@ class CommunicationService {
       "state": "detect",
       "text": "hello baby",
     };
-    
+
     // Send to device-server topic
     _publishMqttMessage('device-server', listenPayload);
-    
+
     // Also send to internal/server-ingest with wrapped format
     final wrappedListen = {
-      "orginal_payload": listenPayload,  // Note: keeping original typo
+      "orginal_payload": listenPayload, // Note: keeping original typo
       "sender_client_id": _deviceMac,
     };
     _publishMqttMessage('internal/server-ingest', wrappedListen);
@@ -352,13 +380,13 @@ class CommunicationService {
       "type": "abort",
       "session_id": _udpSessionDetails!.sessionId,
     };
-    
+
     // Send to device-server topic
     _publishMqttMessage('device-server', abortPayload);
-    
+
     // Also send to internal/server-ingest with wrapped format
     final wrappedAbort = {
-      "orginal_payload": abortPayload,  // Note: keeping original typo
+      "orginal_payload": abortPayload, // Note: keeping original typo
       "sender_client_id": _deviceMac,
     };
     _publishMqttMessage('internal/server-ingest', wrappedAbort);
@@ -405,13 +433,13 @@ class CommunicationService {
         "type": "goodbye",
         "session_id": _udpSessionDetails!.sessionId,
       };
-      
+
       // Send to device-server topic
       _publishMqttMessage('device-server', goodbyePayload);
-      
+
       // Also send to internal/server-ingest with wrapped format
       final wrappedGoodbye = {
-        "orginal_payload": goodbyePayload,  // Note: keeping original typo
+        "orginal_payload": goodbyePayload, // Note: keeping original typo
         "sender_client_id": _deviceMac,
       };
       _publishMqttMessage('internal/server-ingest', wrappedGoodbye);

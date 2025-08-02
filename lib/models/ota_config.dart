@@ -74,6 +74,15 @@ class AudioParams {
     required this.sampleRate,
   });
 
+  // --- ADD THIS copyWith METHOD ---
+  AudioParams copyWith({int? channels, int? frameDuration, int? sampleRate}) {
+    return AudioParams(
+      channels: channels ?? this.channels,
+      frameDuration: frameDuration ?? this.frameDuration,
+      sampleRate: sampleRate ?? this.sampleRate,
+    );
+  }
+
   factory AudioParams.fromJson(Map<String, dynamic> json) {
     return AudioParams(
       channels: json['channels'],

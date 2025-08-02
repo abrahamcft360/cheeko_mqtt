@@ -10,8 +10,8 @@ dependencies:
   encrypt: ^5.0.3
   flutter:
     sdk: flutter
+  flutter_sound: ^9.28.0
   http: ^1.4.0
-  just_audio: ^0.10.4
   logger: ^2.6.1
   mqtt_client: ^10.10.0
   opus_dart: ^3.0.1

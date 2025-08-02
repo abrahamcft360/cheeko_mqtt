@@ -74,10 +74,14 @@ class PlaygroundViewModel extends ChangeNotifier {
       ); // Give MQTT time to subscribe
 
       _updateStatus('Establishing secure session...');
+
+      // --- FIX: SET THE AUDIO CALLBACK *BEFORE* STARTING THE SESSION ---
+      _commService.startUdpListener(_audioService.playAudioChunk);
+
       bool sessionSuccess = await _commService.sendHelloAndGetSession();
       if (!sessionSuccess) throw Exception('Failed to establish session.');
 
-      _commService.startUdpListener(_audioService.playAudioChunk);
+      _audioService.updateAudioParameters(_commService.getAudioParams());
 
       _updateStatus('Starting conversation...');
       await _commService.triggerConversation();
