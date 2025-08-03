@@ -56,13 +56,13 @@ class MqttService {
           // );
           try {
             _messageStreamController.add(json.decode(payload));
-          } catch (e) {
+          } on Exception catch (e) {
             log('MQTT Service: Error decoding JSON: $e');
           }
         });
       }
       return _isConnected;
-    } catch (e) {
+    } on Exception catch (e) {
       log('MQTT Service: Exception during connect: $e');
       _client.disconnect();
       _isConnected = false;

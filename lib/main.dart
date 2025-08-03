@@ -18,7 +18,7 @@ void main() async {
   // Initialize Opus library
   try {
     await _initializeOpus();
-  } catch (e) {
+  } on Exception catch (e) {
     log('Warning: Failed to initialize Opus library: $e');
   }
   

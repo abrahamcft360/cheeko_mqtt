@@ -188,7 +188,7 @@ class PlaygroundProvider extends ChangeNotifier {
         }
         _playbackBuffer.clear();
       }
-    } catch (e) {
+    } on Exception catch (e) {
       log("Failed to start audio playback: $e");
       _state = PlaygroundState.error;
       _statusMessage = "Audio playback error";
@@ -213,29 +213,64 @@ class PlaygroundProvider extends ChangeNotifier {
   }
 
   Future<void> _startListening() async {
+    // Ensure clean state before starting new recording session
+    await _ensureRecordingCleanup();
+    
     _state = PlaygroundState.listening;
     _statusMessage = "Listening... Speak now!";
     notifyListeners();
+    
+    _audioBuffer.clear(); // Ensure buffer is clean
+    
+    log('PlaygroundProvider: Starting recording session');
 
     final bool recordingStarted = await _audioRecorderService.startRecording();
     if (recordingStarted) {
       _audioRecordingSubscription = _audioRecorderService.audioStream.listen(
         _handleRecordedAudio,
         onError: (error) {
-          log('Error in audio stream: $error');
+          log('PlaygroundProvider: Error in audio stream: $error');
+          _handleRecordingError(error);
         },
       );
     } else {
       _state = PlaygroundState.error;
       _statusMessage = "Failed to start recording.";
+      log('PlaygroundProvider: Failed to start audio recording');
       notifyListeners();
     }
+  }
+  
+  // Ensure recording is properly cleaned up between sessions
+  Future<void> _ensureRecordingCleanup() async {
+    try {
+      if (_audioRecordingSubscription != null) {
+        await _audioRecordingSubscription?.cancel();
+        _audioRecordingSubscription = null;
+      }
+      
+      // Stop any ongoing recording
+      await _audioRecorderService.stopRecording();
+    } on Exception catch (e) {
+      log('PlaygroundProvider: Error during recording cleanup: $e');
+    }
+  }
+  
+  // Handle recording errors gracefully
+  void _handleRecordingError(dynamic error) {
+    log('PlaygroundProvider: Recording error: $error');
+    _state = PlaygroundState.error;
+    _statusMessage = "Recording error occurred";
+    notifyListeners();
+    
+    // Attempt to cleanup and reset
+    _ensureRecordingCleanup();
   }
 
   void _handleRecordedAudio(Uint8List data) {
     // Accumulate audio data
     _audioBuffer.addAll(data);
-
+    
     if (_audioParams == null) return;
 
     // Calculate expected frame size
@@ -244,13 +279,36 @@ class PlaygroundProvider extends ChangeNotifier {
         (_audioParams!['sample_rate'] * frameDuration / 1000).toInt();
     final expectedInputSize =
         frameSizeSamples * 2 * _audioParams!['channels']; // 2 bytes per sample
+    
+    // Check for buffer overflow (prevent memory issues)
+    if (_audioBuffer.length > expectedInputSize * 10) {
+      final overflow = (_audioBuffer.length - (expectedInputSize * 5)).toInt();
+      _audioBuffer.removeRange(0, overflow);
+      log('PlaygroundProvider: Buffer overflow, dropped $overflow bytes');
+    }
 
     // Send complete frames
     while (_audioBuffer.length >= expectedInputSize) {
-      final frameData =
-          Uint8List.fromList(_audioBuffer.take(expectedInputSize).toList());
-      _audioBuffer.removeRange(0, expectedInputSize);
-      _udpService.sendAudio(frameData);
+      try {
+        if (expectedInputSize <= 0) break;
+        
+        final frameData = Uint8List.fromList(
+          _audioBuffer.take(expectedInputSize).toList()
+        );
+        
+        if (frameData.length != expectedInputSize) break;
+        
+        if (_audioBuffer.length >= expectedInputSize) {
+          _audioBuffer.removeRange(0, expectedInputSize);
+          _udpService.sendAudio(frameData);
+        } else {
+          break;
+        }
+      } on Exception catch (e) {
+        log('PlaygroundProvider: Error processing frame: $e');
+        _audioBuffer.clear();
+        break;
+      }
     }
   }
 
@@ -269,17 +327,37 @@ class PlaygroundProvider extends ChangeNotifier {
 
   @override
   void dispose() {
-    log('Disposing PlaygroundProvider');
-    _player.closePlayer();
-    if (_sessionId != null) {
-      _sendMqttEvent('device-server', 'goodbye', {"session_id": _sessionId});
-    }
-    _mqttSubscription?.cancel();
-    _audioRecordingSubscription?.cancel();
-    _udpAudioSubscription?.cancel();
-    _mqttService.dispose();
-    _udpService.disconnect();
-    _audioRecorderService.dispose();
+    log('PlaygroundProvider: Disposing');
+    _cleanupAsync();
     super.dispose();
+  }
+  
+  // Async cleanup to properly await dispose methods
+  Future<void> _cleanupAsync() async {
+    try {
+      await _player.closePlayer();
+      
+      // Send goodbye message if session exists
+      if (_sessionId != null) {
+        _sendMqttEvent('device-server', 'goodbye', {"session_id": _sessionId});
+      }
+      
+      // Cancel subscriptions
+      await _mqttSubscription?.cancel();
+      await _audioRecordingSubscription?.cancel();
+      await _udpAudioSubscription?.cancel();
+      
+      // Dispose services
+      _mqttService.dispose();
+      _udpService.disconnect();
+      await _audioRecorderService.dispose();
+      
+      // Clear buffers
+      _audioBuffer.clear();
+      _playbackBuffer.clear();
+      
+    } on Exception catch (e) {
+      log('PlaygroundProvider: Error during cleanup: $e');
+    }
   }
 }

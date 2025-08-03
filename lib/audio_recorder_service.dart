@@ -19,7 +19,6 @@ class AudioRecorderService {
     return status.isGranted;
   }
 
-  // Simplified: No silence detection, just continuous recording
   Future<bool> startRecording() async {
     final hasPermission = await _requestPermission();
     if (!hasPermission) {
@@ -44,16 +43,9 @@ class AudioRecorderService {
       
       final stream = await _audioRecorder.startStream(config);
       _isRecording = true;
-      
-      int totalBytesReceived = 0;
-      int chunksReceived = 0;
 
       _audioStreamSubscription = stream.listen(
         (data) {
-          chunksReceived++;
-          totalBytesReceived += data.length;
-          
-          // Add data to stream
           _audioStreamController.add(data);
         },
         onError: (error) {
@@ -61,14 +53,13 @@ class AudioRecorderService {
           _isRecording = false;
         },
         onDone: () {
-          log('AudioRecorderService: Stream done. Total chunks: $chunksReceived, bytes: $totalBytesReceived');
           _isRecording = false;
         },
       );
       
       log('AudioRecorderService: Recording started successfully');
       return true;
-    } catch (e) {
+    } on Exception catch (e) {
       log('AudioRecorderService: Error starting recording: $e');
       _isRecording = false;
       return false;
@@ -77,7 +68,6 @@ class AudioRecorderService {
 
   Future<void> stopRecording() async {
     try {
-      log('AudioRecorderService: Stopping recording...');
       await _audioStreamSubscription?.cancel();
       _audioStreamSubscription = null;
       
@@ -86,15 +76,15 @@ class AudioRecorderService {
         _isRecording = false;
         log('AudioRecorderService: Recording stopped.');
       }
-    } catch (e) {
+    } on Exception catch (e) {
       log('AudioRecorderService: Error stopping recording: $e');
       _isRecording = false;
     }
   }
 
-  void dispose() {
-    _audioStreamSubscription?.cancel();
-    _audioRecorder.dispose();
-    _audioStreamController.close();
+  Future<void> dispose() async {
+    await _audioStreamSubscription?.cancel();
+    await _audioRecorder.dispose();
+    await _audioStreamController.close();
   }
 }

@@ -41,7 +41,7 @@ class UdpService {
           }
         }
       });
-    } catch (e) {
+    } on Exception catch (e) {
       log('UDP Service: Error binding socket: $e');
     }
   }
@@ -74,7 +74,7 @@ class UdpService {
         application: Application.voip,
       );
       log('UDP Service: Opus encoder initialized successfully');
-    } catch (e, stackTrace) {
+    } on Exception catch (e, stackTrace) {
       log('UDP Service: Failed to initialize Opus codec: $e');
       log('UDP Service: Stack trace: $stackTrace');
     }
@@ -126,15 +126,17 @@ class UdpService {
               bytes.addByte((sample >> 8) & 0xFF);
             }
             
+            final outputBytes = bytes.toBytes();
+            
             // Add the decoded PCM audio data to our stream
-            _audioDataController.add(bytes.toBytes());
-          } catch (e) {
+            _audioDataController.add(outputBytes);
+          } on Exception catch (e) {
             log('UDP Service: Opus decoding error: $e');
           }
         } else {
           log('UDP Service: Opus decoder not initialized');
         }
-      } catch (e) {
+      } on Exception catch (e) {
         log('UDP Service: Decryption error: $e');
       }
     }
@@ -200,20 +202,21 @@ class UdpService {
       // Only encode if we have a full frame
       if (pcmAudioData.length >= expectedInputSize) {
         // Convert Uint8List to Int16List (little endian PCM16)
+        // FIXED: Proper little-endian conversion and sign handling
         final int16Data = Int16List(frameSizeSamples * _audioParams!['channels']);
+        
         for (int i = 0; i < int16Data.length; i++) {
           final low = pcmAudioData[i * 2];
           final high = pcmAudioData[i * 2 + 1];
-          // Little endian: low byte first, then high byte
-          int16Data[i] = (high << 8) | low;
           
-          // Sign extend for negative values
-          if (int16Data[i] > 32767) {
-            int16Data[i] = int16Data[i] - 65536;
-          }
+          // FIXED: Correct little endian conversion - low byte first, then high byte
+          final unsigned = low | (high << 8);
           
-          // Optional: Apply a small gain boost (1.5x) to improve audio clarity
-          // int16Data[i] = (int16Data[i] * 1.5).clamp(-32768, 32767).toInt();
+          // FIXED: Proper signed 16-bit conversion
+          int16Data[i] = unsigned <= 32767 ? unsigned : unsigned - 65536;
+          
+          // FIXED: Apply gain boost to improve audio levels (testing with 2x)
+          int16Data[i] = (int16Data[i] * 2.0).clamp(-32768, 32767).toInt();
         }
         
         final opusData = _opusEncoder!.encode(
@@ -222,8 +225,8 @@ class UdpService {
         
         _sendEncryptedPacket(opusData);
       }
-    } catch (e) {
-      log('UDP Service: Opus encoding error: $e');
+    } on Exception catch (e) {
+      log('UDP Service: ❌ Opus encoding error: $e');
     }
   }
 
