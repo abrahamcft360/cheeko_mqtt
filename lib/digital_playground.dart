@@ -2,7 +2,6 @@ import 'dart:developer' as developer;
 import 'package:cheeko_mqtt/app_colors.dart';
 import 'package:cheeko_mqtt/playground_provider.dart';
 import 'package:flutter/material.dart';
-// import 'package:model_viewer_plus/model_viewer_plus.dart';
 import 'package:provider/provider.dart';
 
 class DigitalPlayground extends StatelessWidget {

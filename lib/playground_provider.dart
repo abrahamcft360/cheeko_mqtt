@@ -215,13 +215,13 @@ class PlaygroundProvider extends ChangeNotifier {
   Future<void> _startListening() async {
     // Ensure clean state before starting new recording session
     await _ensureRecordingCleanup();
-    
+
     _state = PlaygroundState.listening;
     _statusMessage = "Listening... Speak now!";
     notifyListeners();
-    
+
     _audioBuffer.clear(); // Ensure buffer is clean
-    
+
     log('PlaygroundProvider: Starting recording session');
 
     final bool recordingStarted = await _audioRecorderService.startRecording();
@@ -240,7 +240,7 @@ class PlaygroundProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
-  
+
   // Ensure recording is properly cleaned up between sessions
   Future<void> _ensureRecordingCleanup() async {
     try {
@@ -248,21 +248,21 @@ class PlaygroundProvider extends ChangeNotifier {
         await _audioRecordingSubscription?.cancel();
         _audioRecordingSubscription = null;
       }
-      
+
       // Stop any ongoing recording
       await _audioRecorderService.stopRecording();
     } on Exception catch (e) {
       log('PlaygroundProvider: Error during recording cleanup: $e');
     }
   }
-  
+
   // Handle recording errors gracefully
   void _handleRecordingError(dynamic error) {
     log('PlaygroundProvider: Recording error: $error');
     _state = PlaygroundState.error;
     _statusMessage = "Recording error occurred";
     notifyListeners();
-    
+
     // Attempt to cleanup and reset
     _ensureRecordingCleanup();
   }
@@ -270,7 +270,7 @@ class PlaygroundProvider extends ChangeNotifier {
   void _handleRecordedAudio(Uint8List data) {
     // Accumulate audio data
     _audioBuffer.addAll(data);
-    
+
     if (_audioParams == null) return;
 
     // Calculate expected frame size
@@ -279,7 +279,7 @@ class PlaygroundProvider extends ChangeNotifier {
         (_audioParams!['sample_rate'] * frameDuration / 1000).toInt();
     final expectedInputSize =
         frameSizeSamples * 2 * _audioParams!['channels']; // 2 bytes per sample
-    
+
     // Check for buffer overflow (prevent memory issues)
     if (_audioBuffer.length > expectedInputSize * 10) {
       final overflow = (_audioBuffer.length - (expectedInputSize * 5)).toInt();
@@ -291,13 +291,12 @@ class PlaygroundProvider extends ChangeNotifier {
     while (_audioBuffer.length >= expectedInputSize) {
       try {
         if (expectedInputSize <= 0) break;
-        
-        final frameData = Uint8List.fromList(
-          _audioBuffer.take(expectedInputSize).toList()
-        );
-        
+
+        final frameData =
+            Uint8List.fromList(_audioBuffer.take(expectedInputSize).toList());
+
         if (frameData.length != expectedInputSize) break;
-        
+
         if (_audioBuffer.length >= expectedInputSize) {
           _audioBuffer.removeRange(0, expectedInputSize);
           _udpService.sendAudio(frameData);
@@ -331,31 +330,30 @@ class PlaygroundProvider extends ChangeNotifier {
     _cleanupAsync();
     super.dispose();
   }
-  
+
   // Async cleanup to properly await dispose methods
   Future<void> _cleanupAsync() async {
     try {
       await _player.closePlayer();
-      
+
       // Send goodbye message if session exists
       if (_sessionId != null) {
         _sendMqttEvent('device-server', 'goodbye', {"session_id": _sessionId});
       }
-      
+
       // Cancel subscriptions
       await _mqttSubscription?.cancel();
       await _audioRecordingSubscription?.cancel();
       await _udpAudioSubscription?.cancel();
-      
+
       // Dispose services
       _mqttService.dispose();
       _udpService.disconnect();
       await _audioRecorderService.dispose();
-      
+
       // Clear buffers
       _audioBuffer.clear();
       _playbackBuffer.clear();
-      
     } on Exception catch (e) {
       log('PlaygroundProvider: Error during cleanup: $e');
     }
