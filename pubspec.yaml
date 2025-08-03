@@ -4,23 +4,23 @@ publish_to: "none"
 version: 0.1.0
 
 environment:
-  sdk: ^3.8.1
+  sdk: ">=3.0.0 <4.0.0"
 
 dependencies:
+  audioplayers: ^6.5.0
   encrypt: ^5.0.3
   flutter:
     sdk: flutter
   flutter_sound: ^9.28.0
+  flutter_tts: ^4.2.3
   http: ^1.4.0
-  logger: ^2.6.1
+  model_viewer_plus: ^1.9.3
   mqtt_client: ^10.10.0
   opus_dart: ^3.0.1
-  opus_flutter: ^3.0.3
-  path_provider: ^2.1.5
+  opus_flutter: ^3.0.1
   permission_handler: ^12.0.1
   provider: ^6.1.5
   record: ^6.0.0
-  uuid: ^4.5.1
 
 dev_dependencies:
   flutter_lints: ^5.0.0
@@ -29,3 +29,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  assets:
+    - assets/
