@@ -94,9 +94,9 @@ class DigitalPlayground extends StatelessWidget {
         margin: const EdgeInsets.symmetric(horizontal: 40),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.7),
+          color: Colors.black.withValues(alpha: 0.7),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.blue.withOpacity(0.5)),
+          border: Border.all(color: AppColors.blue.withValues(alpha: 0.5)),
         ),
         child: Text(
           provider.liveResponseText,
@@ -158,7 +158,7 @@ class DigitalPlayground extends StatelessWidget {
                     provider.state == PlaygroundState.playingWelcome)
                 ? [
                     BoxShadow(
-                      color: color.withOpacity(0.6),
+                      color: color.withValues(alpha: 0.6),
                       blurRadius: 16,
                       spreadRadius: 8,
                     ),

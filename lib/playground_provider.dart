@@ -28,7 +28,7 @@ class PlaygroundProvider extends ChangeNotifier {
   final UdpService _udpService = UdpService();
   final AudioRecorderService _audioRecorderService = AudioRecorderService();
 
-  final FlutterSoundPlayer _player = FlutterSoundPlayer(logLevel: Level.nothing);
+  final FlutterSoundPlayer _player = FlutterSoundPlayer(logLevel: Level.off);
 
   // State
   PlaygroundState _state = PlaygroundState.initial;
@@ -44,10 +44,10 @@ class PlaygroundProvider extends ChangeNotifier {
   String? _clientId;
   String? _sessionId;
   Map<String, dynamic>? _audioParams;
-  
+
   // Audio buffer for accumulating PCM data before encoding
   final List<int> _audioBuffer = [];
-  
+
   // Audio playback buffer for jitter control
   final List<Uint8List> _playbackBuffer = [];
   bool _isPlayerReady = false;
@@ -130,7 +130,8 @@ class PlaygroundProvider extends ChangeNotifier {
       _liveResponseText = data['text'] ?? "";
       notifyListeners();
     } else if (type == 'tts' && data['state'] == 'stop') {
-      if (_state == PlaygroundState.playingWelcome || _state == PlaygroundState.responding) {
+      if (_state == PlaygroundState.playingWelcome ||
+          _state == PlaygroundState.responding) {
         _stopPlayback();
         _startListening();
       }
@@ -151,7 +152,7 @@ class PlaygroundProvider extends ChangeNotifier {
     } else {
       // Buffer the audio data if player is not ready
       _playbackBuffer.add(data);
-      
+
       // Limit buffer size to prevent memory issues
       if (_playbackBuffer.length > 100) {
         _playbackBuffer.removeAt(0);
@@ -177,7 +178,7 @@ class PlaygroundProvider extends ChangeNotifier {
       );
       // Mark player as ready
       _isPlayerReady = true;
-      
+
       // Flush any buffered audio data
       if (_playbackBuffer.isNotEmpty) {
         for (final chunk in _playbackBuffer) {
@@ -234,17 +235,20 @@ class PlaygroundProvider extends ChangeNotifier {
   void _handleRecordedAudio(Uint8List data) {
     // Accumulate audio data
     _audioBuffer.addAll(data);
-    
+
     if (_audioParams == null) return;
-    
+
     // Calculate expected frame size
     final frameDuration = _audioParams!['frame_duration'] ?? 20;
-    final frameSizeSamples = (_audioParams!['sample_rate'] * frameDuration / 1000).toInt();
-    final expectedInputSize = frameSizeSamples * 2 * _audioParams!['channels']; // 2 bytes per sample
-    
+    final frameSizeSamples =
+        (_audioParams!['sample_rate'] * frameDuration / 1000).toInt();
+    final expectedInputSize =
+        frameSizeSamples * 2 * _audioParams!['channels']; // 2 bytes per sample
+
     // Send complete frames
     while (_audioBuffer.length >= expectedInputSize) {
-      final frameData = Uint8List.fromList(_audioBuffer.take(expectedInputSize).toList());
+      final frameData =
+          Uint8List.fromList(_audioBuffer.take(expectedInputSize).toList());
       _audioBuffer.removeRange(0, expectedInputSize);
       _udpService.sendAudio(frameData);
     }

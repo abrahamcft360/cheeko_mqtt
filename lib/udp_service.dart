@@ -88,10 +88,10 @@ class UdpService {
         final encryptedPayload = data.sublist(16);
         
         // Parse header to get packet info
-        final packetType = header[0];
-        final payloadLen = (header[2] << 8) | header[3];
-        final timestamp = (header[8] << 24) | (header[9] << 16) | (header[10] << 8) | header[11];
-        final sequence = (header[12] << 24) | (header[13] << 16) | (header[14] << 8) | header[15];
+        // final packetType = header[0];
+        // final payloadLen = (header[2] << 8) | header[3];
+        // final timestamp = (header[8] << 24) | (header[9] << 16) | (header[10] << 8) | header[11];
+        // final sequence = (header[12] << 24) | (header[13] << 16) | (header[14] << 8) | header[15];
 
         // Use CTR mode with no padding (like Python's cryptography library)
         final encrypter = enc.Encrypter(
